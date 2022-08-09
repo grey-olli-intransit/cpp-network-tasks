@@ -8,6 +8,10 @@
 #include <socket_wrapper/socket_wrapper.h>
 #include <socket_wrapper/socket_class.h>
 
+#include <sys/socket.h>
+#include <netdb.h>
+
+#define MAX_FQDN_LEN 255
 
 // Trim from end (in place).
 static inline std::string& rtrim(std::string& s)
@@ -73,9 +77,27 @@ int main(int argc, char const *argv[])
 
         if (recv_len > 0)
         {
+            char client_name_buff[MAX_FQDN_LEN + 1] = {0};
+            char failed_back_resolve[] = "<Back resolve failed>";
+            int retval;
+            /* int getnameinfo(const struct sockaddr *restrict addr, socklen_t addrlen,
+                                   char *restrict host, socklen_t hostlen,
+                                   char *restrict serv, socklen_t servlen, int flags);
+            */
+            // https://stackoverflow.com/questions/6170219/problem-while-compiling-socket-connect-code-in-c , answer by asveikau
+            //retval = getnameinfo((const struct sockaddr *) &client_address,client_address_len,client_name_buff,MAX_FQDN_LEN,NULL,0,NI_DGRAM);
+            retval = getnameinfo( reinterpret_cast<const struct sockaddr *>(&client_address),client_address_len,client_name_buff,MAX_FQDN_LEN,NULL,0,NI_DGRAM|NI_IDN);
+            if (retval != 0 ) {
+
+
+            }
             buffer[recv_len] = '\0';
             std::cout
-                << "Client with address "
+                << "Client"
+                << " ["
+                << ((retval != 0) ? failed_back_resolve : client_name_buff)
+                << "]"
+                << " with address "
                 << inet_ntop(AF_INET, &client_address.sin_addr, client_address_buf, sizeof(client_address_buf) / sizeof(client_address_buf[0]))
                 << ":" << ntohs(client_address.sin_port)
                 << " sent datagram "
