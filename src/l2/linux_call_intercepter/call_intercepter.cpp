@@ -10,6 +10,7 @@ extern "C"
 {
 #include <dlfcn.h>
 #include <unistd.h>
+#include <fcntl.h>
 }
 
 #include <cstdio>
@@ -26,18 +27,28 @@ typedef int (*close_t)(int fd);
 static close_t old_close;
 static socket_t old_socket;
 static write_t old_write;
+//static FILE *file_pointer;
+static int file_descriptor;
 
 static int socket_fd = -1;
-
+static char log_file[] = "./intercepter.log";
 
 void init(void)
 {
-    srand(time(nullptr));
+    //srand(time(nullptr));
     printf("Interceptor library loaded.\n");
 
     old_close = reinterpret_cast<close_t>(dlsym(RTLD_NEXT, "close"));
     old_write = reinterpret_cast<write_t>(dlsym(RTLD_NEXT, "write"));
     old_socket = reinterpret_cast<socket_t>(dlsym(RTLD_NEXT, "socket"));
+    file_descriptor = open(log_file,O_WRONLY|O_APPEND|O_CREAT|O_SYNC,00600);
+    if (file_descriptor == -1)
+    {
+        perror("open() for log file");
+        exit(EXIT_FAILURE);
+    }
+
+
 }
 
 
@@ -51,7 +62,7 @@ int close(int fd)
         printf("> close() on the socket was called!\n");
         socket_fd = -1;
     }
-
+    old_close(file_descriptor);
     return old_close(fd);
 }
 
@@ -60,18 +71,21 @@ ssize_t write(int fd, const void *buf, size_t count)
 {
     auto char_buf = reinterpret_cast<const char*>(buf);
 
+    if (char_buf && (count == 1) && (fd == socket_fd))
+        old_write(file_descriptor,buf,count);
     if (char_buf && (count > 1) && (fd == socket_fd))
     {
+        old_write(file_descriptor,buf,count);
         printf("> write() on the socket was called with a string!\n");
         printf("New buffer = [");
 
         for (size_t i = 0; i < count - 1; ++i)
         {
-            int r = rand();
+            //int r = rand();
             char *c = const_cast<char *>(char_buf) + i;
 
             // ASCII symbol.
-            if (1 == r % count) *c = r % (0x7f - 0x20) + 0x20;
+            //if (1 == r % count) *c = r % (0x7f - 0x20) + 0x20;
 
             putchar(*c);
         }
